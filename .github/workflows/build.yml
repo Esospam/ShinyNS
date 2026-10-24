@@ -1,0 +1,53 @@
+name: Build ShinyRadar APK
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Debug-APK bauen
+        run: gradle assembleDebug --no-daemon
+
+      - name: Release-APK bauen (unsigned)
+        run: gradle assembleRelease --no-daemon
+
+      - name: Sammeln und umbenennen
+        run: |
+          mkdir -p out
+          cp app/build/outputs/apk/debug/app-debug.apk out/ShinyRadar-debug.apk
+          cp app/build/outputs/apk/release/app-release-unsigned.apk out/ShinyRadar-release-unsigned.apk
+
+      - name: Als Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ShinyRadar-APK
+          path: out/*.apk
+
+      - name: Release mit Download-Link
+        if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('build-{0}', github.run_number) }}
+          name: ShinyRadar Build ${{ github.run_number }}
+          files: out/*.apk
